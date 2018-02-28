@@ -1,51 +1,10 @@
-/**
- ******************************************************************************
- * @file    main.c
- * @author  Ac6
- * @version V1.0
- * @date    01-December-2013
- * @brief   Default main function.
- ******************************************************************************
- */
 
-#include "stm32f0xx.h"
-#include "stdbool.h"
-#include "string.h"
-#include "stdlib.h"
+#include "main.h"
 
-#define N 512
-#define NLOG2 9
-
-#define CURVE_EXP 73216 // 1.1172 * 2^16 - chosen to go from 0-256 in 32 iterations
-
-#define LIS3DH_ADDR (0x18<<1)
 
 enum {
 	IDLE, STARTING, SENDING_REG, READING, STOPPING, NEEDSRESET
 } I2CMode = NEEDSRESET;
-
-
-extern const short Sinewave[];
-extern int fix_fft(short fr[], short fi[], short m, short inverse);
-extern int32_t fix16_sqrt(int32_t inValue);
-
-void processBuffer(int16_t * bufferToProcess);
-void jsonKey(char ** pp, const char * key, uint32_t value, int places);
-void jsonFraction(char ** pp, uint32_t value, int places);
-
-void initRcc();
-void initTim1();
-void initAdc();
-void initGpio();
-void initUart();
-void initDma();
-void initI2C();
-
-void sendOutBuffer();
-
-void i2cReadReg(uint8_t addr, uint8_t reg, uint8_t * value, uint8_t len);
-void initAccelerometer();
-void startAccelerometerPoll();
 
 volatile uint16_t adcBuffer[7]; //updated by DMA @ 20KHz
 volatile int16_t accelerometer[3]; //updated by DMA
@@ -56,9 +15,6 @@ volatile bool readDone;
 int readSide;
 int readPos;
 int16_t buffer[2][N];
-
-char outBuffer[512];
-int outBufferLen;
 
 int main(void) {
 	SysTick_Config(SystemCoreClock/1000); //tick interval 1ms
@@ -85,124 +41,12 @@ int main(void) {
 			startAccelerometerPoll();
 
 			//grab the side we're not currently writing to and do an FFT on it
-			processBuffer(&buffer[!readSide][0]);
-
-//			i2cReadReg(LIS3DH_ADDR, 0x28, (uint8_t *) &accelerometer[0], 6);
+			processSensorData(&buffer[!readSide][0], adcBuffer, accelerometer);
 
 			GPIO_WriteBit(GPIOB, GPIO_Pin_1, 0);
 		}
 
 	}
-}
-
-void processBuffer(int16_t * bufferToProcess) {
-	union {
-		int16_t imaginary[N]; //imaginary component
-		uint16_t magnitude[N]; //calculated magnitude
-	} tmp;
-
-	//init imaginary with zeros and calculate average (DC offset)
-	uint32_t total = 0;
-	for (int i = 0; i < N; i++) {
-		tmp.imaginary[i] = 0;
-		total += bufferToProcess[i];
-	}
-	int average = total >> NLOG2;
-
-	for (int i = 0; i < N; i++) {
-		//filter out DC (subtract the average) then
-		//apply a windowing function, borrowing Sinewave LUT from fix_fft
-		//the positive bit of Sinewave ranges from index 0-512 (9 bit positions)
-		//could probably optimize: si = i * 512 / N == (i << 9) >> 9 == i
-		int si = i * 512 / N;
-		bufferToProcess[i] -= average;
-		bufferToProcess[i] = (Sinewave[si] * bufferToProcess[i]) >> 16;
-	}
-
-	//run the FFT (runs in place, overwriting buf and imaginary)
-	fix_fft(bufferToProcess, &tmp.imaginary[0], NLOG2, 0);
-
-	//an fft of 512 gives us 256 buckets of frequency info. at 20khz, each has ~38Hz
-	//we don't really want all 256 buckets of frequency info
-	//if we compressed this linearly, we'd lose a lot of low/mid tone info
-
-	//start making output buffer
-	char * p = outBuffer;
-
-	//TODO calculate total audio energy.
-
-	//compress these on an exponential curve. TODO insert math here
-	//each pass gives new top frequency that is at least 1 bucket higher than the last pass
-	//run through and average all the buckets up to that new top
-	int k = 0;
-	int i = 0;
-	uint32_t acc = 0; // 16.16 fixed point for the curve
-	// acc = acc * 1.1172 + 1
-	for (; acc <= N/2 << 16; k++) {
-		acc = ((uint64_t)acc * (uint64_t)CURVE_EXP) >> 16;
-		acc += 0x10000;
-		//calculate magnitude of frequency buckets for this group
-		int top = acc >> 16;
-		int size = top - i;
-		uint32_t total = 0;
-		for (; i < top; i++) {
-			//using the fix16_sqrt gives us a bit more resolution as we get
-			//8 bits more using this over an integer sqrt
-			int32_t t = fix16_sqrt(
-					tmp.imaginary[i] * tmp.imaginary[i] +
-					bufferToProcess[i] * bufferToProcess[i]);
-
-			//we can't keep all those extra bits, but 4 of 8 seems like a good value
-			//as this only overloads a little and only for REALLY LOUD inputs
-			t >>= 4;
-			total += t;
-		}
-		uint32_t average = total / size;
-		//cap to 16 bit value
-		if (average > 0xffff)
-			average = 0xffff;
-
-		//write this out
-//		jsonFraction(&p, average, 5);
-	}
-
-
-
-	for (int i = 1; i < 7; i++) {
-		jsonFraction(&p, adcBuffer[i]<<4, 5);
-	}
-	
-
-	*(p - 1) = '\n'; //replace last comma
-	//NOTE: no null terminator necessary.
-
-	outBufferLen = p - outBuffer;
-	sendOutBuffer();
-}
-
-void jsonKey(char ** pp, const char * key, uint32_t value, int places) {
-	char * p = *pp;
-	*p++ = '"';
-	//copy key until null
-	while ((*p++ = *key++) != 0)
-		;
-	*(p-1) = '"'; //replace the copied null
-	*p++ = ':';
-	*pp = p;
-}
-
-void jsonFraction(char ** pp, uint32_t value, int places) {
-	char * p = *pp;
-	*p++ = '.';
-	//only write the lower 16 bits of value as a fractional up to a number of places
-	//based on https://codereview.stackexchange.com/a/109219
-	do {
-		value *= 10;
-	    *p++ = '0' + (value >> 16);
-	    value &= ((1 << 16) - 1);
-	} while (value > 0 && places--) ;
-	*p++ = ',';
-	*pp = p;
 }
 
 void initRcc() {
@@ -317,35 +161,12 @@ void initI2C() {
 	NVIC_SetPriority(I2C1_IRQn, 4);
 }
 
-void SysTick_Handler(void) {
-	//keep track of milliseconds
-	ms++;
-}
 
-//handle DMA for the channel doing ADC
-void DMA1_CH1_IRQHandler() {
-	if (DMA1->ISR & DMA_ISR_TCIF1) {
-		//the dma transfer is complete, save off the audio channel to a ping-pong buffer
-		buffer[readSide][readPos] = adcBuffer[0] << 3;
-		readPos++;
-		if (readPos >= N) {
-			readSide = !readSide;
-			readPos = 0;
-			readDone = true;
-		}
-
-	}
-
-	//is this bad? this seems right, but also wrong somehow
-	//unset any set bits for channel1
-	DMA1->IFCR = DMA1->ISR & 0xf;
-}
-
-void sendOutBuffer() {
+void writeToUsart(uint8_t * outBuffer, uint32_t len) {
 	DMA1_Channel2->CCR = 0; //disable, reset state
 	DMA1_Channel2->CPAR = (uint32_t) &USART1->TDR;
-	DMA1_Channel2->CMAR = (uint32_t) &outBuffer[0];
-	DMA1_Channel2->CNDTR = outBufferLen;
+	DMA1_Channel2->CMAR = (uint32_t) outBuffer;
+	DMA1_Channel2->CNDTR = len;
 	//set DMA_CCR_MINC to increment mem address
 	//set DMA_CCR_DIR for out to perepheral
 	//set DMA_CCR_EN to make it so
@@ -422,6 +243,32 @@ void startAccelerometerPoll() {
 	}
 }
 
+
+void SysTick_Handler(void) {
+	//keep track of milliseconds
+	ms++;
+}
+
+//handle DMA for the channel doing ADC
+void DMA1_CH1_IRQHandler() {
+	if (DMA1->ISR & DMA_ISR_TCIF1) {
+		//the dma transfer is complete, save off the audio channel to a ping-pong buffer
+		buffer[readSide][readPos] = adcBuffer[0] << 3;
+		readPos++;
+		if (readPos >= N) {
+			readSide = !readSide;
+			readPos = 0;
+			readDone = true;
+		}
+
+	}
+
+	//is this bad? this seems right, but also wrong somehow
+	//unset any set bits for channel1
+	DMA1->IFCR = DMA1->ISR & 0xf;
+}
+
+
 void I2C1_ErrorHandler() {
 	I2CMode = NEEDSRESET;
 	I2C_GenerateSTOP(I2C1, ENABLE);
@@ -488,3 +335,4 @@ void DMA1_CH2_3_IRQHandler() {
 	//unset any set bits for channel3
 	DMA1->IFCR = DMA1->ISR & 0xf00;
 }
+
