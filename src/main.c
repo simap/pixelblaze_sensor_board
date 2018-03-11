@@ -35,7 +35,7 @@ int main(void) {
 		if (readDone) {
 			readDone = false;
 
-			GPIO_WriteBit(GPIOB, GPIO_Pin_1, 1);
+//			GPIO_WriteBit(GPIOB, GPIO_Pin_1, 1);
 
 			//start polling the accelerometer now, it can run in the background while the FFT processes
 			startAccelerometerPoll();
@@ -43,7 +43,7 @@ int main(void) {
 			//grab the side we're not currently writing to and do an FFT on it
 			processSensorData(&buffer[!readSide][0], adcBuffer, accelerometer);
 
-			GPIO_WriteBit(GPIOB, GPIO_Pin_1, 0);
+//			GPIO_WriteBit(GPIOB, GPIO_Pin_1, 0);
 		}
 
 	}
@@ -101,14 +101,14 @@ void initGpio() {
 	//select alternate function 4 (i2c1) for pin 9 and 10
 	GPIOA->AFR[1] |= 0b0100 << 4 | 0b0100 << 8;
 	//set a0, a1, a4, a5, a6, a7 and b1 to analog inputs
-	//set a2, a3 as alternate mode (tx, rx)
+	//set a2, a3 as alternate mode (tx, rx) and a9, a10 as alt mode (i2c)
 	GPIOA->MODER |= GPIO_MODER_MODER0 | GPIO_MODER_MODER1 |
 			GPIO_MODER_MODER2_1 | GPIO_MODER_MODER3_1 | //set up a2 and a3 as alt function (usart1)
 			GPIO_MODER_MODER4 | GPIO_MODER_MODER5 | GPIO_MODER_MODER6 | GPIO_MODER_MODER7 |
 			GPIO_MODER_MODER9_1 | GPIO_MODER_MODER10_1; //set up a9 and a10 as alt function (i2c)
 
-//	GPIOB->MODER |= GPIO_MODER_MODER1;
-	GPIOB->MODER |= GPIO_MODER_MODER1_0; //output for scoping timings
+	GPIOB->MODER |= GPIO_MODER_MODER1;
+//	GPIOB->MODER |= GPIO_MODER_MODER1_0; //output for scoping timings
 }
 
 void initUart() {

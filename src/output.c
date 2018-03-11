@@ -1,7 +1,7 @@
 
 #include "main.h"
 
-char outBuffer[512];
+char outBuffer[100];
 int outBufferLen;
 
 uint8_t nib2hex(uint8_t in);
@@ -17,10 +17,11 @@ void processSensorData(int16_t * audioBuffer, volatile uint16_t adcBuffer[7], vo
 		int16_t imaginary[N]; //imaginary component
 		uint16_t magnitude[N]; //calculated magnitude
 	} tmp;
+	uint16_t tmpu16;
 
 	//start making output buffer
 	char * out = outBuffer;
-	WRITEOUT("SB10");
+	WRITEOUT("SB1.0");
 
 	//init imaginary with zeros and calculate average (DC offset)
 	uint32_t total = 0;
@@ -55,8 +56,10 @@ void processSensorData(int16_t * audioBuffer, volatile uint16_t adcBuffer[7], vo
 	int k = 0;
 	int i = 0;
 	uint32_t acc = 0; // 16.16 fixed point for the curve
+	int maxFrequencyIndex = -1;
+	int32_t maxFrequencyMagnitude = -1;
 	// acc = acc * 1.1172 + 1
-	for (; acc <= N/2 << 16; k++) {
+	for (; acc <= (N/2+1) << 16; k++) {
 		acc = ((uint64_t)acc * (uint64_t)CURVE_EXP) >> 16;
 		acc += 0x10000;
 		//calculate magnitude of frequency buckets for this group
@@ -73,6 +76,12 @@ void processSensorData(int16_t * audioBuffer, volatile uint16_t adcBuffer[7], vo
 			//we can't keep all those extra bits, but 4 of 8 seems like a good value
 			//as this only overloads a little and only for REALLY LOUD inputs
 			t >>= 4;
+
+			if (t > maxFrequencyMagnitude) {
+				maxFrequencyMagnitude = t;
+				maxFrequencyIndex = i;
+			}
+
 			total += t;
 		}
 		uint32_t average = total / size;
@@ -85,22 +94,25 @@ void processSensorData(int16_t * audioBuffer, volatile uint16_t adcBuffer[7], vo
 	}
 
 	WRITEOUT(energyAverage);
+	if (maxFrequencyMagnitude > 0xffff)
+		tmpu16 = 0xffff;
+	else
+		tmpu16 = maxFrequencyMagnitude;
+	WRITEOUT(tmpu16);
+	tmpu16 = 20000 * maxFrequencyIndex / 512; //or 39.0625 per bin
+	WRITEOUT(tmpu16);
 
+	for (int i = 0; i < 3; i++) {
+		int16_t v = accelerometer[i];
+		WRITEOUT(v);
+	}
 
 	for (int i = 1; i < 7; i++) {
 		uint16_t v = adcBuffer[i]<<4;
 		WRITEOUT(v);
 	}
 
-	for (int i = 0; i < 3; i++) {
-		uint16_t v = accelerometer[i];
-		WRITEOUT(v);
-	}
-
-
-
-	*(out - 1) = '\n'; //replace last comma
-	//NOTE: no null terminator necessary.
+	WRITEOUT("END");
 
 	outBufferLen = out - outBuffer;
 	writeToUsart((uint8_t *) outBuffer, outBufferLen);
