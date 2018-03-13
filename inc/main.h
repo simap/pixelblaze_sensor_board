@@ -18,7 +18,6 @@
 extern const short Sinewave[];
 extern int fix_fft(short fr[], short fi[], short m, short inverse);
 extern int32_t fix16_sqrt(int32_t inValue);
-extern int16_t iir_filter(int16_t nextin);
 
 void initRcc();
 void initTim1();
