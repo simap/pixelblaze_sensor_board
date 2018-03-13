@@ -6,15 +6,29 @@ enum {
 	IDLE, STARTING, SENDING_REG, READING, STOPPING, NEEDSRESET
 } I2CMode = NEEDSRESET;
 
+
+uint32_t audioAverage = 16384<<16;
 volatile uint16_t adcBuffer[7]; //updated by DMA @ 20KHz
 volatile int16_t accelerometer[3]; //updated by DMA
 volatile uint32_t ms = 0; //updated by SysTick
 
-//ping-pong buffer for audio
+
+//ping-pong buffer for main 20KHz audio
 volatile bool readDone;
 int readSide;
 int readPos;
-int16_t buffer[2][N];
+int16_t buffer[2][HIGH_N];
+
+//circular buffer for low frequency stuff - we need to reuse parts of it and can afford the memory
+//the 32 samples cover 1600 samples of the original audio
+struct {
+	int16_t circular[32];
+	int16_t output[32];
+	int head;
+	//keep track of how many samples have passed through the filter to know when to sample from it
+	int32_t downSampleAcc;
+	int downSampleCounter;
+} buffer400Hz;
 
 int main(void) {
 	SysTick_Config(SystemCoreClock/1000); //tick interval 1ms
@@ -35,15 +49,15 @@ int main(void) {
 		if (readDone) {
 			readDone = false;
 
-//			GPIO_WriteBit(GPIOB, GPIO_Pin_1, 1);
+			GPIO_WriteBit(GPIOB, GPIO_Pin_1, 1);
 
 			//start polling the accelerometer now, it can run in the background while the FFT processes
 			startAccelerometerPoll();
 
 			//grab the side we're not currently writing to and do an FFT on it
-			processSensorData(&buffer[!readSide][0], adcBuffer, accelerometer);
+			processSensorData(&buffer[!readSide][0], &buffer400Hz.output[0], adcBuffer, accelerometer);
 
-//			GPIO_WriteBit(GPIOB, GPIO_Pin_1, 0);
+			GPIO_WriteBit(GPIOB, GPIO_Pin_1, 0);
 		}
 
 	}
@@ -107,8 +121,8 @@ void initGpio() {
 			GPIO_MODER_MODER4 | GPIO_MODER_MODER5 | GPIO_MODER_MODER6 | GPIO_MODER_MODER7 |
 			GPIO_MODER_MODER9_1 | GPIO_MODER_MODER10_1; //set up a9 and a10 as alt function (i2c)
 
-	GPIOB->MODER |= GPIO_MODER_MODER1;
-//	GPIOB->MODER |= GPIO_MODER_MODER1_0; //output for scoping timings
+//	GPIOB->MODER |= GPIO_MODER_MODER1;
+	GPIOB->MODER |= GPIO_MODER_MODER1_0; //output for scoping timings
 }
 
 void initUart() {
@@ -252,15 +266,37 @@ void SysTick_Handler(void) {
 //handle DMA for the channel doing ADC
 void DMA1_CH1_IRQHandler() {
 	if (DMA1->ISR & DMA_ISR_TCIF1) {
-		//the dma transfer is complete, save off the audio channel to a ping-pong buffer
-		buffer[readSide][readPos] = adcBuffer[0] << 3;
+		//the dma transfer is complete
+		int16_t audioSample = adcBuffer[0]<<3;
+		volatile int32_t d = (audioSample<<16) - audioAverage;
+		audioAverage += (d) >> 16;
+		audioSample -= audioAverage>>16;
+
+		//downsample 50:1 for the low frequency buffer
+//		int16_t filtered = iir_filter(audioSample);
+		buffer400Hz.downSampleAcc += audioSample;
+		if (++buffer400Hz.downSampleCounter >= 50) {
+			buffer400Hz.downSampleCounter = 0;
+			buffer400Hz.circular[buffer400Hz.head++] = buffer400Hz.downSampleAcc/50;
+			buffer400Hz.downSampleAcc = 0;
+			if (buffer400Hz.head >= 32)
+				buffer400Hz.head = 0;
+		}
+
+		//save to the ping-pong buffer
+		buffer[readSide][readPos] = audioSample;
+
 		readPos++;
-		if (readPos >= N) {
+		if (readPos >= HIGH_N) {
+			//copy the 400 hz buffer snapshot
+			for (int i = 0; i < LOW_N; i++) {
+				buffer400Hz.output[i] = buffer400Hz.circular[(buffer400Hz.head + i) & 31];
+			}
+			//toggle sides and mark done
 			readSide = !readSide;
 			readPos = 0;
 			readDone = true;
 		}
-
 	}
 
 	//is this bad? this seems right, but also wrong somehow

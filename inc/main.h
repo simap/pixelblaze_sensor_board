@@ -6,10 +6,11 @@
 #include "string.h"
 #include "stdlib.h"
 
-#define N 512
-#define NLOG2 9
+#define HIGH_N 512
+#define HIGH_NLOG2 9
 
-#define CURVE_EXP 73216 // 1.1172 * 2^16 - chosen to go from 0-256 in 32 iterations
+#define LOW_N 32
+#define LOW_NLOG2 5
 
 #define LIS3DH_ADDR (0x18<<1)
 
@@ -17,6 +18,7 @@
 extern const short Sinewave[];
 extern int fix_fft(short fr[], short fi[], short m, short inverse);
 extern int32_t fix16_sqrt(int32_t inValue);
+extern int16_t iir_filter(int16_t nextin);
 
 void initRcc();
 void initTim1();
@@ -32,6 +34,7 @@ void i2cReadReg(uint8_t addr, uint8_t reg, uint8_t * value, uint8_t len);
 void initAccelerometer();
 void startAccelerometerPoll();
 
-void processSensorData(int16_t * audioBuffer, volatile uint16_t adcBuffer[7], volatile int16_t accelerometer[3]);
+void processSensorData(int16_t * audioBuffer, int16_t * audio400HzBuffer, volatile uint16_t adcBuffer[7], volatile int16_t accelerometer[3]);
+
 
 #endif
