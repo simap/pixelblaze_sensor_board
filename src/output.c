@@ -74,7 +74,7 @@ void processSensorData(int16_t * audioBuffer, int16_t * audio400HzBuffer, volati
 	uint16_t lowEnergy;
 	uint16_t energyAverage;
 	int maxFrequencyIndex = -1;
-	uint16_t maxFrequencyMagnitude = -1;
+	uint16_t maxFrequencyMagnitude = 0;
 	uint16_t maxFrequencyHz;
 	char * out = outBuffer;
 
@@ -87,12 +87,11 @@ void processSensorData(int16_t * audioBuffer, int16_t * audio400HzBuffer, volati
 	for (int i = 0, k = lowFrequencyMap[0]; i < 6; i++) {
 		int top = lowFrequencyMap[i] + 1;
 		int size = top - k;
-		uint32_t total = 0;
+		uint16_t max = 0;
 		for (; k < top; k++) {
-			total += magnitude[k];
+			max = magnitude[k] > max ? magnitude[k] : max;
 		}
-		uint16_t average = total / size;
-		WRITEOUT(average);
+		WRITEOUT(max);
 	}
 
 	//do high frequency stuff
@@ -110,12 +109,11 @@ void processSensorData(int16_t * audioBuffer, int16_t * audio400HzBuffer, volati
 	for (int i = 0, k = highFrequencyMap[0]; i < 26; i++) {
 		int top = highFrequencyMap[i] + 1;
 		int size = top - k;
-		uint32_t total = 0;
+		uint16_t max = 0;
 		for (; k < top; k++) {
-			total += magnitude[k];
+			max = magnitude[k] > max ? magnitude[k] : max;
 		}
-		uint16_t average = total / size;
-		WRITEOUT(average);
+		WRITEOUT(max);
 	}
 
 	WRITEOUT(energyAverage);

@@ -26,9 +26,8 @@ struct {
 	int16_t output[32];
 	int head;
 	//keep track of how many samples have passed through the filter to know when to sample from it
-	int32_t downSampleAcc;
 	int downSampleCounter;
-} buffer400Hz;
+} bufferLowHz;
 
 int main(void) {
 	SysTick_Config(SystemCoreClock/1000); //tick interval 1ms
@@ -55,7 +54,7 @@ int main(void) {
 			startAccelerometerPoll();
 
 			//grab the side we're not currently writing to and do an FFT on it
-			processSensorData(&buffer[!readSide][0], &buffer400Hz.output[0], adcBuffer, accelerometer);
+			processSensorData(&buffer[!readSide][0], &bufferLowHz.output[0], adcBuffer, accelerometer);
 
 			GPIO_WriteBit(GPIOB, GPIO_Pin_1, 0);
 		}
@@ -274,13 +273,11 @@ void DMA1_CH1_IRQHandler() {
 
 		//downsample 50:1 for the low frequency buffer
 //		int16_t filtered = iir_filter(audioSample);
-		buffer400Hz.downSampleAcc += audioSample;
-		if (++buffer400Hz.downSampleCounter >= 50) {
-			buffer400Hz.downSampleCounter = 0;
-			buffer400Hz.circular[buffer400Hz.head++] = buffer400Hz.downSampleAcc/50;
-			buffer400Hz.downSampleAcc = 0;
-			if (buffer400Hz.head >= 32)
-				buffer400Hz.head = 0;
+		if (++bufferLowHz.downSampleCounter >= 50) {
+			bufferLowHz.downSampleCounter = 0;
+			bufferLowHz.circular[bufferLowHz.head++] = audioSample;
+			if (bufferLowHz.head >= 32)
+				bufferLowHz.head = 0;
 		}
 
 		//save to the ping-pong buffer
@@ -290,7 +287,7 @@ void DMA1_CH1_IRQHandler() {
 		if (readPos >= HIGH_N) {
 			//copy the 400 hz buffer snapshot
 			for (int i = 0; i < LOW_N; i++) {
-				buffer400Hz.output[i] = buffer400Hz.circular[(buffer400Hz.head + i) & 31];
+				bufferLowHz.output[i] = bufferLowHz.circular[(bufferLowHz.head + i) & 31];
 			}
 			//toggle sides and mark done
 			readSide = !readSide;
