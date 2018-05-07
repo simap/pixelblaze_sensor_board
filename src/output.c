@@ -39,7 +39,6 @@ void fftRealWindowedMagnitude(int16_t * in, uint16_t * out, int m, uint16_t * en
 	}
 	uint32_t energyTotal = 0;
 	for (int i = 0; i < n; i++) {
-		//filter out DC (subtract the average)
 		energyTotal += abs(in[i]);
 
 		//apply the hann windowing function, borrowing Sinewave LUT from fix_fft
@@ -73,7 +72,7 @@ void processSensorData(int16_t * audioBuffer, int16_t * audio400HzBuffer, volati
 	uint16_t magnitude[HIGH_N]; //temp and output from the fft
 	uint16_t lowEnergy;
 	uint16_t energyAverage;
-	int maxFrequencyIndex = -1;
+	int maxFrequencyIndex = 0;
 	uint16_t maxFrequencyMagnitude = 0;
 	uint16_t maxFrequencyHz;
 	char * out = outBuffer;
@@ -98,7 +97,7 @@ void processSensorData(int16_t * audioBuffer, int16_t * audio400HzBuffer, volati
 	fftRealWindowedMagnitude(audioBuffer, &magnitude[0], HIGH_NLOG2, &energyAverage);
 
 	//run through and get maxFrequency info
-	for (int i = 0; i < HIGH_N/2; i++) {
+	for (int i = 1; i < HIGH_N/2; i++) {
 		if (magnitude[i] > maxFrequencyMagnitude) {
 			maxFrequencyMagnitude = magnitude[i];
 			maxFrequencyIndex = i;
@@ -118,7 +117,7 @@ void processSensorData(int16_t * audioBuffer, int16_t * audio400HzBuffer, volati
 
 	WRITEOUT(energyAverage);
 	WRITEOUT(maxFrequencyMagnitude);
-	maxFrequencyHz = 20000 * maxFrequencyIndex / 512; //or 39.0625 per bin
+	maxFrequencyHz = (20000 * (int32_t)maxFrequencyIndex) / 512; //or 39.0625 per bin
 	WRITEOUT(maxFrequencyHz);
 
 	for (int i = 0; i < 3; i++) {

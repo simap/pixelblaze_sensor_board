@@ -27,6 +27,7 @@ struct {
 	int head;
 	//keep track of how many samples have passed through the filter to know when to sample from it
 	int downSampleCounter;
+	int32_t avg;
 } bufferLowHz;
 
 int main(void) {
@@ -48,7 +49,7 @@ int main(void) {
 		if (readDone) {
 			readDone = false;
 
-			GPIO_WriteBit(GPIOB, GPIO_Pin_1, 1);
+//			GPIO_WriteBit(GPIOB, GPIO_Pin_1, 1);
 
 			//start polling the accelerometer now, it can run in the background while the FFT processes
 			startAccelerometerPoll();
@@ -56,7 +57,7 @@ int main(void) {
 			//grab the side we're not currently writing to and do an FFT on it
 			processSensorData(&buffer[!readSide][0], &bufferLowHz.output[0], adcBuffer, accelerometer);
 
-			GPIO_WriteBit(GPIOB, GPIO_Pin_1, 0);
+//			GPIO_WriteBit(GPIOB, GPIO_Pin_1, 0);
 		}
 
 	}
@@ -120,8 +121,8 @@ void initGpio() {
 			GPIO_MODER_MODER4 | GPIO_MODER_MODER5 | GPIO_MODER_MODER6 | GPIO_MODER_MODER7 |
 			GPIO_MODER_MODER9_1 | GPIO_MODER_MODER10_1; //set up a9 and a10 as alt function (i2c)
 
-//	GPIOB->MODER |= GPIO_MODER_MODER1;
-	GPIOB->MODER |= GPIO_MODER_MODER1_0; //output for scoping timings
+	GPIOB->MODER |= GPIO_MODER_MODER1;
+//	GPIOB->MODER |= GPIO_MODER_MODER1_0; //output for scoping timings
 }
 
 void initUart() {
@@ -267,18 +268,22 @@ void DMA1_CH1_IRQHandler() {
 	if (DMA1->ISR & DMA_ISR_TCIF1) {
 		//the dma transfer is complete
 		int16_t audioSample = adcBuffer[0]<<3;
+
+
+		//downsample 50:1 for the low frequency buffer
+		bufferLowHz.avg += audioSample;
+		if (++bufferLowHz.downSampleCounter >= 50) {
+			bufferLowHz.downSampleCounter = 0;
+			bufferLowHz.circular[bufferLowHz.head++] = bufferLowHz.avg/50 - (audioAverage>>16);
+			bufferLowHz.avg = 0;
+			if (bufferLowHz.head >= 32)
+				bufferLowHz.head = 0;
+		}
+
 		volatile int32_t d = (audioSample<<16) - audioAverage;
 		audioAverage += (d) >> 16;
 		audioSample -= audioAverage>>16;
 
-		//downsample 50:1 for the low frequency buffer
-//		int16_t filtered = iir_filter(audioSample);
-		if (++bufferLowHz.downSampleCounter >= 50) {
-			bufferLowHz.downSampleCounter = 0;
-			bufferLowHz.circular[bufferLowHz.head++] = audioSample;
-			if (bufferLowHz.head >= 32)
-				bufferLowHz.head = 0;
-		}
 
 		//save to the ping-pong buffer
 		buffer[readSide][readPos] = audioSample;
