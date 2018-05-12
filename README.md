@@ -8,7 +8,7 @@ Pixelblaze Sensor Expansion Board
 * An ambient light sensor
 * 5 analog inputs that can be used with potentiometers or other analog inputs
 
-For sale on Tindie! Pick up this board and/or a Pixelblaze! Make cool sound-reactive LED things, or get one and hack the firmware!
+[For sale on Tindie](https://www.tindie.com/products/12158/)! Pick up this board and/or a Pixelblaze! Make cool sound-reactive LED things, or get one and hack the firmware!
 
 ![soundmatrix](http://app.bhencke.com/pixelblaze/soundmatrix.gif)
 
