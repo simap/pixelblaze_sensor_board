@@ -1,7 +1,16 @@
 Pixelblaze Sensor Expansion Board
 -------------------
 
-For sale on Tindie! Pick up this board and/or a Pixelblaze!
+![sensor board](http://app.bhencke.com/pixelblaze/sb10.jpg)
+
+* A microphone and signal processing with frequency magnitude data ranging from 37Hz-10KHz designed to work in very loud environments
+* A 3-axis 16G accelerometer
+* An ambient light sensor
+* 5 analog inputs that can be used with potentiometers or other analog inputs
+
+For sale on Tindie! Pick up this board and/or a Pixelblaze! Make cool sound-reactive LED things, or get one and hack the firmware!
+
+![soundmatrix](http://app.bhencke.com/pixelblaze/soundmatrix.gif)
 
 I hope you find this useful or interesting. Maybe you hack your board? I'd be stoked to hear about it! Roll your own? Great! Turn it into a robot brain? Awesome!
 
