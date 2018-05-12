@@ -33,7 +33,7 @@ void fftRealWindowedMagnitude(int16_t * in, uint16_t * out, int m, uint16_t * en
 	int16_t * imag = (int16_t *) out; //borrow out for imaginary part
 	int n = 1 << m;
 
-	//init with zeros and calculate average (DC offset)
+	//init with zeros
 	for (int i = 0; i < n; i++) {
 		imag[i] = 0;
 	}
@@ -134,37 +134,4 @@ void processSensorData(int16_t * audioBuffer, int16_t * audio400HzBuffer, volati
 
 	outBufferLen = out - outBuffer;
 	writeToUsart((uint8_t *) outBuffer, outBufferLen);
-}
-
-uint8_t nib2hex(uint8_t in) {
-	in &= 0xf;
-	if (in < 10)
-		return '0' + in;
-	else
-		return 'a' + (in-10);
-}
-
-void jsonKey(char ** pp, const char * key, uint32_t value, int places) {
-	char * p = *pp;
-	*p++ = '"';
-	//copy key until null
-	while ((*p++ = *key++) != 0)
-		;
-	*(p-1) = '"'; //replace the copied null
-	*p++ = ':';
-	*pp = p;
-}
-
-void jsonFraction(char ** pp, uint32_t value, int places) {
-	char * p = *pp;
-	*p++ = '.';
-	//only write the lower 16 bits of value as a fractional up to a number of places
-	//based on https://codereview.stackexchange.com/a/109219
-	do {
-		value *= 10;
-	    *p++ = '0' + (value >> 16);
-	    value &= ((1 << 16) - 1);
-	} while (value > 0 && places--) ;
-	*p++ = ',';
-	*pp = p;
 }
