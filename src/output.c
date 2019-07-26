@@ -85,7 +85,6 @@ void processSensorData(int16_t * audioBuffer, int16_t * audio400HzBuffer, volati
 	//write out low frequency stuff
 	for (int i = 0, k = lowFrequencyMap[0]; i < 6; i++) {
 		int top = lowFrequencyMap[i] + 1;
-		int size = top - k;
 		uint16_t max = 0;
 		for (; k < top; k++) {
 			max = magnitude[k] > max ? magnitude[k] : max;
@@ -107,7 +106,6 @@ void processSensorData(int16_t * audioBuffer, int16_t * audio400HzBuffer, volati
 	//write out high frequency stuff
 	for (int i = 0, k = highFrequencyMap[0]; i < 26; i++) {
 		int top = highFrequencyMap[i] + 1;
-		int size = top - k;
 		uint16_t max = 0;
 		for (; k < top; k++) {
 			max = magnitude[k] > max ? magnitude[k] : max;
@@ -125,10 +123,26 @@ void processSensorData(int16_t * audioBuffer, int16_t * audio400HzBuffer, volati
 		WRITEOUT(v);
 	}
 
-	for (int i = 1; i < 7; i++) {
-		uint16_t v = adcBuffer[i]<<4;
-		WRITEOUT(v);
-	}
+	//light
+	uint16_t v = adcBuffer[1]<<4;
+	WRITEOUT(v);
+
+	//a0
+	v = adcBuffer[2]<<4;
+	WRITEOUT(v);
+	//a1
+	v = adcBuffer[6]<<4;
+	WRITEOUT(v);
+	//a2
+	v = adcBuffer[5]<<4;
+	WRITEOUT(v);
+	//a3
+	v = adcBuffer[4]<<4;
+	WRITEOUT(v);
+	//a4
+	v = adcBuffer[3]<<4;
+	WRITEOUT(v);
+
 
 	WRITEOUT("END");
 

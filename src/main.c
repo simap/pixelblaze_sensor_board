@@ -98,7 +98,7 @@ void initAdc() {
 
 	//set ADC_SMPR = 101 for 55cycle sample time
 	ADC1->SMPR = 0b101;
-	//set ADC_CHSELR bits to enable various channels (0, 1, 4, 6, 7, 8)
+	//set ADC_CHSELR bits to enable various channels (0, 1, 4, 5, 6, 7, 8)
 	ADC1->CHSELR = ADC_CHSELR_CHSEL0 | ADC_CHSELR_CHSEL1 | ADC_CHSELR_CHSEL4 |
 					ADC_CHSELR_CHSEL5 | ADC_CHSELR_CHSEL6 | ADC_CHSELR_CHSEL7 | ADC_CHSELR_CHSEL9;
 	//set ADC_ADEN to enable adc and wait for ready
