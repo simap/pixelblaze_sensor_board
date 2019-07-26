@@ -1,7 +1,7 @@
 Pixelblaze Sensor Expansion Board
 -------------------
 
-![sensor board](http://app.bhencke.com/pixelblaze/sb10.jpg)
+![sensor board](http://app.bhencke.com/pixelblaze/sb10b.jpg)
 
 * A microphone and signal processing with frequency magnitude data ranging from 37Hz-10KHz designed to work in very loud environments
 * A 3-axis 16G accelerometer
