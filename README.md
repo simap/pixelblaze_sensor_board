@@ -25,11 +25,12 @@ Looking to use this with an Arduino or Teensy or something? You just need a free
 The protocol is fairly simple:
 
 1. Each frame starts with "SB1.0" including a null character (6 bytes).
-1. The frequency information follows, as 32 x 16-bit unsigned integers.
-1. Then is the audio energy average, max frequency magnitiude, max frequency Hz, all 3 as 16-bit unsigned ints.
-1. Next the accelerometer information as 3 x 16-bit signed integers.
-1. Followed by the 5 x 16-bit analog inputs (12-bit resolution, shifted up to 16 bits)
-1. Finally "END" including a null character (4 bytes).
+2. The frequency information follows, as 32 x 16-bit unsigned integers.
+3. Then is the audio energy average, max frequency magnitiude, max frequency Hz, all 3 as 16-bit unsigned ints.
+4. Next the accelerometer information as 3 x 16-bit signed integers.
+5. The data from the Light sensor is next, as a single 16-bit unsigned integer.
+6. Followed by the 5 x 16-bit analog inputs (12-bit resolution, shifted up to 16 bits)
+7. Finally "END" including a null character (4 bytes).
 
 
 License Information
